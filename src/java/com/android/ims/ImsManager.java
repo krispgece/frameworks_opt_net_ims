@@ -115,6 +115,12 @@ public class ImsManager implements FeatureUpdates {
     public static final String PROPERTY_DBG_ALLOW_IMS_OFF_OVERRIDE = "persist.dbg.allow_ims_off";
     public static final int PROPERTY_DBG_ALLOW_IMS_OFF_OVERRIDE_DEFAULT = 0;
 
+    /*
+     * Set by devices whose IMS service offers video calling over Wi-Fi calling (IWLAN).
+     */
+    private static final String PROPERTY_IWLAN_VIDEO_AVAILABLE =
+            "ro.telephony.iwlan_video_available";
+
     /**
      * The result code to be sent back with the incoming call {@link PendingIntent}.
      * @see #open(MmTelFeature.Listener)
@@ -1857,6 +1863,8 @@ public class ImsManager implements FeatureUpdates {
         boolean isLteFeatureOn = available && vtEnabled && isNonTty && isProvisioned
                 && advancedEnabled && (ignoreDataEnabledChanged || isDataEnabled);
         boolean nrAvailable = isImsOverNrEnabledByPlatform();
+        boolean iwlanAvailable = SystemProperties.getBoolean(
+                PROPERTY_IWLAN_VIDEO_AVAILABLE, false);
 
         log("updateVideoCallFeatureValue: available = " + available
                 + ", vtenabled = " + vtEnabled
@@ -1865,7 +1873,8 @@ public class ImsManager implements FeatureUpdates {
                 + ", data enabled = " + isDataEnabled
                 + ", provisioned = " + isProvisioned
                 + ", isLteFeatureOn = " + isLteFeatureOn
-                + ", nrAvailable = " + nrAvailable);
+                + ", nrAvailable = " + nrAvailable
+                + ", iwlanAvailable = " + iwlanAvailable);
 
         if (isLteFeatureOn) {
             request.addCapabilitiesToEnableForTech(
@@ -1877,6 +1886,19 @@ public class ImsManager implements FeatureUpdates {
                     MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VIDEO,
                     ImsRegistrationImplBase.REGISTRATION_TECH_LTE);
             // VT does not differentiate transport today, do not set IWLAN.
+        }
+
+        // Devices that offer video over Wi-Fi calling follow the LTE setting over IWLAN.
+        if (iwlanAvailable) {
+            if (isLteFeatureOn) {
+                request.addCapabilitiesToEnableForTech(
+                        MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VIDEO,
+                        ImsRegistrationImplBase.REGISTRATION_TECH_IWLAN);
+            } else {
+                request.addCapabilitiesToDisableForTech(
+                        MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VIDEO,
+                        ImsRegistrationImplBase.REGISTRATION_TECH_IWLAN);
+            }
         }
 
         if (isLteFeatureOn && nrAvailable) {
